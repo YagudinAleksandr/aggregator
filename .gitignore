@@ -17,6 +17,9 @@ $RECYCLE.BIN/
 *.ipr
 *.iws
 out/
+# ...но не пакеты с именем out в исходниках (например adapters/out)
+!**/src/main/**/out/
+!**/src/test/**/out/
 
 # ---------- IDE: VS Code ----------
 .vscode/*
