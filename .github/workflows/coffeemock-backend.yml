@@ -2,7 +2,7 @@ name: coffeemock-backend
 
 on:
   push:
-    branches: [master]
+    branches: [master, dev]
     paths:
       - 'coffeemock/backend/**'
       - '.github/workflows/coffeemock-backend.yml'
@@ -17,9 +17,44 @@ defaults:
     working-directory: coffeemock/backend
 
 jobs:
+  # Тесты: dev и master
+  test:
+    name: Test
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read    # для скачивания shared-kernel из GitHub Packages
+    steps:
+      - uses: actions/checkout@v5
+
+      # setup-java создаёт settings.xml с сервером "github" (id совпадает с <repository> в pom)
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: coffeemock/backend/**/pom.xml
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Test
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn -B -ntp clean test
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: coffeemock/backend/**/target/surefire-reports/
+
+  # Сборка: только master и только после успешных тестов
   build:
-    name: Build & test
-    # Ручной запуск тоже разрешён только из master
+    name: Build
+    needs: test
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
@@ -41,10 +76,11 @@ jobs:
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
 
+      # Тесты уже прошли в задаче test
       - name: Build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: mvn -B -ntp clean verify
+        run: mvn -B -ntp clean package -DskipTests
 
       - name: Read version from pom.xml
         id: pom
