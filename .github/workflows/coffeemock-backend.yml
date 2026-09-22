@@ -51,11 +51,10 @@ jobs:
           name: surefire-reports
           path: coffeemock/backend/**/target/surefire-reports/
 
-  # Сборка: только master и только после успешных тестов
+  # Сборка: после успешных тестов (ветки уже отфильтрованы в задаче test)
   build:
     name: Build
     needs: test
-    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -127,15 +126,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Теги: версия из pom.xml, короткий sha коммита и latest
+      # Теги:
+      #   master → версия из pom.xml, latest, sha-xxxxxxx
+      #   dev    → dev, sha-xxxxxxx
       - id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/coffeemock-backend
+          flavor: |
+            latest=false
           tags: |
-            type=raw,value=${{ needs.build.outputs.version }}
+            type=raw,value=${{ needs.build.outputs.version }},enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
             type=sha,format=short
-            type=raw,value=latest
 
       - uses: docker/build-push-action@v6
         with:
