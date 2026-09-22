@@ -2,7 +2,7 @@ name: coffeemock-backend
 
 on:
   push:
-    branches: [master]
+    branches: [master, dev]
     paths:
       - 'coffeemock/backend/**'
       - '.github/workflows/coffeemock-backend.yml'
@@ -17,10 +17,44 @@ defaults:
     working-directory: coffeemock/backend
 
 jobs:
+  # Тесты: dev и master
+  test:
+    name: Test
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read    # для скачивания shared-kernel из GitHub Packages
+    steps:
+      - uses: actions/checkout@v5
+
+      # setup-java создаёт settings.xml с сервером "github" (id совпадает с <repository> в pom)
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: coffeemock/backend/**/pom.xml
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Test
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn -B -ntp clean test
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: coffeemock/backend/**/target/surefire-reports/
+
+  # Сборка: после успешных тестов (ветки уже отфильтрованы в задаче test)
   build:
-    name: Build & test
-    # Ручной запуск тоже разрешён только из master
-    if: github.ref == 'refs/heads/master'
+    name: Build
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -41,10 +75,11 @@ jobs:
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
 
+      # Тесты уже прошли в задаче test
       - name: Build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: mvn -B -ntp clean verify
+        run: mvn -B -ntp clean package -DskipTests
 
       - name: Read version from pom.xml
         id: pom
@@ -91,15 +126,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Теги: версия из pom.xml, короткий sha коммита и latest
+      # Теги:
+      #   master → версия из pom.xml, latest, sha-xxxxxxx
+      #   dev    → dev, sha-xxxxxxx
       - id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/coffeemock-backend
+          flavor: |
+            latest=false
           tags: |
-            type=raw,value=${{ needs.build.outputs.version }}
+            type=raw,value=${{ needs.build.outputs.version }},enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
             type=sha,format=short
-            type=raw,value=latest
 
       - uses: docker/build-push-action@v6
         with:
