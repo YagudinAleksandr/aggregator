@@ -5,9 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <!-- Координаты библиотеки: по ним её подключают другие проекты -->
-    <groupId>uz.autoguide.aggregator</groupId>
+    <groupId>uz.aggregator</groupId>
     <artifactId>shared-kernel</artifactId>
-    <version>0.0.1-BETA</version>
+    <version>0.0.2-BETA</version>
     <packaging>jar</packaging>
 
     <name>shared-kernel</name>
@@ -26,7 +26,6 @@
         <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
     </properties>
 
-    <!-- Куда публикуется библиотека: GitHub Packages этого репозитория -->
     <distributionManagement>
         <repository>
             <id>github</id>
