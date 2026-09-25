@@ -1,0 +1,105 @@
+name: shared-core
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'common-backend/shared-core/**'
+      - '.github/workflows/shared-core.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: shared-core-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: common-backend/shared-core
+
+jobs:
+  build:
+    name: Build & test
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: common-backend/shared-core/pom.xml
+      - name: Build
+        run: mvn -B -ntp clean verify
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shared-core-jar
+          path: common-backend/shared-core/target/*.jar
+
+  publish:
+    name: Publish to GitHub Packages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: common-backend/shared-kernel/pom.xml
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+      - name: Read version from pom.xml
+        id: pom
+        run: |
+          VERSION=$(mvn -B -q help:evaluate -Dexpression=project.version -DforceStdout)
+          GROUP_PATH=$(mvn -B -q help:evaluate -Dexpression=project.groupId -DforceStdout | tr '.' '/')
+          ARTIFACT=$(mvn -B -q help:evaluate -Dexpression=project.artifactId -DforceStdout)
+          echo "version=$VERSION"       >> "$GITHUB_OUTPUT"
+          echo "group_path=$GROUP_PATH" >> "$GITHUB_OUTPUT"
+          echo "artifact=$ARTIFACT"     >> "$GITHUB_OUTPUT"
+          echo "Версия из pom.xml: $VERSION"
+
+      - name: Check if version already published
+        id: exists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.pom.outputs.version }}
+          GROUP_PATH: ${{ steps.pom.outputs.group_path }}
+          ARTIFACT: ${{ steps.pom.outputs.artifact }}
+        run: |
+          if [[ "$VERSION" == *-SNAPSHOT ]]; then
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          URL="https://maven.pkg.github.com/${GITHUB_REPOSITORY}/${GROUP_PATH}/${ARTIFACT}/${VERSION}/${ARTIFACT}-${VERSION}.pom"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $GITHUB_TOKEN" "$URL")
+          if [[ "$STATUS" == "200" ]]; then
+            echo "::warning::Версия $VERSION уже опубликована. Поднимите <version> в pom.xml, чтобы выпустить новую."
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy
+        if: steps.exists.outputs.published == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn -B -ntp clean deploy
+
+      - name: Tag release
+        if: steps.exists.outputs.published == 'false' && !endsWith(steps.pom.outputs.version, '-SNAPSHOT')
+        env:
+          TAG: shared-core/v${{ steps.pom.outputs.version }}
+        run: |
+          git tag "$TAG"
+          git push origin "$TAG"
