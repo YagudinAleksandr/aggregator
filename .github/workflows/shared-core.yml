@@ -24,15 +24,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read    # для скачивания shared-kernel из GitHub Packages
     steps:
       - uses: actions/checkout@v5
+      # setup-java создаёт settings.xml с сервером "github" (id совпадает с <repository> в pom)
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
           cache-dependency-path: common-backend/shared-core/pom.xml
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
       - name: Build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: mvn -B -ntp clean verify
 
       - uses: actions/upload-artifact@v4
@@ -54,12 +61,14 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-          cache-dependency-path: common-backend/shared-kernel/pom.xml
+          cache-dependency-path: common-backend/shared-core/pom.xml
           server-id: github
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
       - name: Read version from pom.xml
         id: pom
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(mvn -B -q help:evaluate -Dexpression=project.version -DforceStdout)
           GROUP_PATH=$(mvn -B -q help:evaluate -Dexpression=project.groupId -DforceStdout | tr '.' '/')
