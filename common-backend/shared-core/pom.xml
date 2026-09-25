@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<project xmlns="http://maven.apache.org/POM/4.1.0"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>uz.aggregator</groupId>
-    <artifactId>shred-core</artifactId>
+    <artifactId>shared-core</artifactId>
     <version>0.0.1-BETA</version>
     <packaging>jar</packaging>
 
-    <name>shred-core</name>
+    <name>shared-core</name>
     <description>Ядро системы</description>
 
     <properties>
@@ -25,6 +25,25 @@
         <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
     </properties>
 
+    <!--
+        Откуда качаем shared-kernel.
+        Нужен <server> с id "github" в ~/.m2/settings.xml (токен с правом read:packages).
+    -->
+    <repositories>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/YagudinAleksandr/aggregator</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <!-- Куда публикуется библиотека -->
     <distributionManagement>
         <repository>
             <id>github</id>
